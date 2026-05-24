@@ -797,8 +797,14 @@ function showToast(msg) {
 }
 
 migrateOldData();
-showToast('Cargando facturas...');
-load().then(() => { renderList(); });
+// Load local data immediately so UI works
+try { const r=localStorage.getItem(KEY); if(r) invoices=JSON.parse(r); } catch(e){ invoices=[]; }
+renderList();
+// Then sync from Google Sheets in background
+fetch(SCRIPT_URL + '?action=load')
+  .then(r=>r.json())
+  .then(data=>{ if(data.ok && data.invoices && data.invoices.length>0){ invoices=data.invoices.filter(i=>i.id); localStorage.setItem(KEY,JSON.stringify(invoices)); renderList(); }})
+  .catch(()=>{});
 </script>
 </body>
 </html>
