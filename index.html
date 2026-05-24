@@ -425,6 +425,8 @@ body{background:var(--bg);color:var(--text);min-height:100vh;max-width:430px;mar
 
 <script>
 const KEY = 'factuscan_v5';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx4bJ8mL1bQ1SnC1CgXFCW_bwDo5KZjCUppTCXui_UPOu6exLYGTX1yXuFDc3ZL1_ObZw/exec';
+let syncEnabled = true;
 let invoices = [];
 
 function migrateOldData() {
@@ -452,8 +454,29 @@ let selectedExportMonth = null;
 
 const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
-function load() { try { const r=localStorage.getItem(KEY); if(r) invoices=JSON.parse(r); } catch(e){ invoices=[]; } }
-function save() { localStorage.setItem(KEY, JSON.stringify(invoices)); }
+async function load() {
+  try {
+    const res = await fetch(SCRIPT_URL, {method:'POST', body:JSON.stringify({action:'load'})});
+    const data = await res.json();
+    if(data.ok) {
+      invoices = data.invoices.filter(i=>i.id);
+      localStorage.setItem(KEY, JSON.stringify(invoices));
+    }
+  } catch(e) {
+    try { const r=localStorage.getItem(KEY); if(r) invoices=JSON.parse(r); } catch(e2){ invoices=[]; }
+  }
+}
+async function save(inv) {
+  localStorage.setItem(KEY, JSON.stringify(invoices));
+  try {
+    await fetch(SCRIPT_URL, {method:'POST', body:JSON.stringify({action:'save', invoice:inv})});
+  } catch(e) {}
+}
+async function deleteFromSheet(id) {
+  try {
+    await fetch(SCRIPT_URL, {method:'POST', body:JSON.stringify({action:'delete', id:id})});
+  } catch(e) {}
+}
 
 function bls(n) {
   if(!n && n!==0) return 'B/. —';
@@ -659,7 +682,7 @@ function saveInvoice() {
     total:parseFloat(total),
     createdAt:new Date().toISOString()
   });
-  save(); renderList(); closeScanModal(); showToast('Factura guardada ✓');
+  const newInv = invoices[invoices.length-1]; save(newInv); renderList(); closeScanModal(); showToast('Factura guardada ✓');
 }
 
 // ── DETAIL ───────────────────────────────────────────────────
@@ -683,8 +706,8 @@ function openDetail(id) {
 function deleteInvoice() {
   if(!currentDetailId) return;
   if(!confirm('¿Eliminar esta factura?')) return;
-  invoices=invoices.filter(i=>i.id!==currentDetailId);
-  save(); renderList();
+  const delId=currentDetailId; invoices=invoices.filter(i=>i.id!==delId);
+  localStorage.setItem(KEY, JSON.stringify(invoices)); deleteFromSheet(delId); renderList();
   document.getElementById('modal-detail').classList.remove('open');
   showToast('Factura eliminada');
 }
@@ -773,7 +796,9 @@ function showToast(msg) {
   setTimeout(()=>t.classList.remove('show'),2200);
 }
 
-migrateOldData(); load(); renderList();
+migrateOldData();
+showToast('Cargando facturas...');
+load().then(() => { renderList(); });
 </script>
 </body>
 </html>
