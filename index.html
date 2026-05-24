@@ -426,6 +426,23 @@ body{background:var(--bg);color:var(--text);min-height:100vh;max-width:430px;mar
 <script>
 const KEY = 'factuscan_v5';
 let invoices = [];
+
+function migrateOldData() {
+  const oldKeys = ['factuscan_v4', 'factuscan_v3', 'factuscan_v2'];
+  if (localStorage.getItem(KEY)) return;
+  for (const ok of oldKeys) {
+    const raw = localStorage.getItem(ok);
+    if (raw) {
+      try {
+        const old = JSON.parse(raw);
+        // Add default categoria if missing
+        const migrated = old.map(inv => ({...inv, categoria: inv.categoria || 'ordinario'}));
+        localStorage.setItem(KEY, JSON.stringify(migrated));
+      } catch(e) {}
+      break;
+    }
+  }
+}
 let currentFile = null;
 let currentB64 = null;
 let currentFileType = null;
@@ -756,7 +773,7 @@ function showToast(msg) {
   setTimeout(()=>t.classList.remove('show'),2200);
 }
 
-load(); renderList();
+migrateOldData(); load(); renderList();
 </script>
 </body>
 </html>
