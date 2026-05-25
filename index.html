@@ -796,20 +796,18 @@ function doExport() {
   ws['!cols']=[{wch:16},{wch:12},{wch:14},{wch:44},{wch:22},{wch:34},{wch:14},{wch:12},{wch:14}];
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, monthLabel(selectedExportMonth));
-  // Try native share, fall back to download link
   const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
-  const blob = new Blob([wbout], {type:'application/octet-stream'});
-  const url = URL.createObjectURL(blob);
+  const blob = new Blob([wbout], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
   const fname = `Facturas_${selectedExportMonth}.xlsx`;
-  if (navigator.share) {
-    const file = new File([blob], fname, {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-    navigator.share({files:[file], title:'Facturas '+monthLabel(selectedExportMonth)})
-      .catch(()=>{ const a=document.createElement('a'); a.href=url; a.download=fname; a.click(); });
-  } else {
-    const a=document.createElement('a'); a.href=url; a.download=fname; document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fname;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
   document.getElementById('modal-export').classList.remove('open');
-  showToast('Excel listo ✓');
+  showToast('Excel descargado ✓');
 }
 
 function showToast(msg) {
