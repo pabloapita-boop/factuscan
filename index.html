@@ -770,46 +770,71 @@ function doExport() {
   const filtered=invoices.filter(i=>monthKey(i.fecha)===selectedExportMonth)
     .sort((a,b)=>new Date(a.fecha||0)-new Date(b.fecha||0));
 
-  const headers = ['Fecha de Emisión','Categoría','N° Factura','CUFE','RUC / ID Emisor','Nombre del Emisor','Subtotal (B/.)','ITBMS (B/.)','Total (B/.)'];
-
-  const escCSV = v => {
+  const sep = ';';
+  const esc = v => {
     const s = String(v===null||v===undefined?'':v);
-    return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g,'""')}"` : s;
+    return s.includes(sep) || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g,'""')}"` : s;
   };
+  const row = arr => arr.map(esc).join(sep);
+  const num = n => (parseFloat(n)||0).toFixed(2).replace('.',',');
+  const sum = (arr, key) => arr.reduce((s,i)=>s+(parseFloat(i[key])||0),0);
 
-  const rows = filtered.map(inv => [
-    inv.fecha ? new Date(inv.fecha+'T00:00:00').toLocaleDateString('es-PA') : '',
-    inv.categoria==='extra' ? 'Extra' : 'Ordinario',
-    inv.nfactura||'',
-    inv.cufe||'',
-    inv.ruc||'',
-    inv.emisor||'',
-    parseFloat(inv.subtotal)||0,
-    parseFloat(inv.itbms)||0,
-    parseFloat(inv.total)||0
-  ]);
+  const lines = [];
 
-  const ordRows = rows.filter(r=>r[1]==='Ordinario');
-  const extRows = rows.filter(r=>r[1]==='Extra');
-  const sum = (arr, i) => arr.reduce((s,r)=>s+(parseFloat(r[i])||0),0);
+  // Title
+  lines.push(row([`REPORTE DE FACTURAS - ${monthLabel(selectedExportMonth).toUpperCase()}`]));
+  lines.push(row([]));
 
-  const allRows = [
-    headers,
-    ...rows,
-    [],
-    ['','','','','','SUBTOTAL ORDINARIOS', sum(ordRows,6), sum(ordRows,7), sum(ordRows,8)],
-    ['','','','','','SUBTOTAL EXTRAS', sum(extRows,6), sum(extRows,7), sum(extRows,8)],
-    [],
-    ['','','','','','TOTAL GENERAL', sum(rows,6), sum(rows,7), sum(rows,8)],
-  ];
+  // Headers
+  lines.push(row([
+    'Fecha de Emisión',
+    'Categoría',
+    'N° Factura',
+    'CUFE',
+    'RUC / ID Emisor',
+    'Nombre del Emisor',
+    'Subtotal (B/.)',
+    'ITBMS (B/.)',
+    'Total (B/.)'
+  ]));
 
-  const csv = allRows.map(r => r.map(escCSV).join(',')).join('\r\n');
+  // Data rows
+  filtered.forEach(inv => {
+    lines.push(row([
+      inv.fecha ? new Date(inv.fecha+'T00:00:00').toLocaleDateString('es-PA') : '',
+      inv.categoria==='extra' ? 'Extra' : 'Ordinario',
+      inv.nfactura||'',
+      inv.cufe||'',
+      inv.ruc||'',
+      inv.emisor||'',
+      num(inv.subtotal),
+      num(inv.itbms),
+      num(inv.total)
+    ]));
+  });
+
+  lines.push(row([]));
+
+  // Subtotals by category
+  const ord = filtered.filter(i=>i.categoria!=='extra');
+  const ext = filtered.filter(i=>i.categoria==='extra');
+
+  if (ord.length > 0) {
+    lines.push(row(['','','','','','SUBTOTAL ORDINARIOS', num(sum(ord,'subtotal')), num(sum(ord,'itbms')), num(sum(ord,'total'))]));
+  }
+  if (ext.length > 0) {
+    lines.push(row(['','','','','','SUBTOTAL EXTRAS', num(sum(ext,'subtotal')), num(sum(ext,'itbms')), num(sum(ext,'total'))]));
+  }
+
+  lines.push(row([]));
+  lines.push(row(['','','','','','TOTAL GENERAL', num(sum(filtered,'subtotal')), num(sum(filtered,'itbms')), num(sum(filtered,'total'))]));
+
+  const csv = lines.join('\r\n');
   const bom = '\uFEFF';
   const blob = new Blob([bom + csv], {type: 'text/csv;charset=utf-8;'});
   const fname = `Facturas_${selectedExportMonth}.csv`;
   const url = URL.createObjectURL(blob);
 
-  // On mobile use share sheet, on desktop download directly
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   if (isMobile && navigator.share && navigator.canShare) {
     const file = new File([blob], fname, {type:'text/csv'});
