@@ -524,9 +524,9 @@ function renderList() {
   document.getElementById('cs-ext-itbms').textContent=bls(ext.itbms);
   document.getElementById('cs-ext-total').textContent=bls(ext.total);
 
-  // Past months (excluding current)
+  // All months including current
   const groups={};
-  invoices.forEach(inv=>{ const mk=monthKey(inv.fecha); if(mk!==cmk){if(!groups[mk])groups[mk]=[]; groups[mk].push(inv);} });
+  invoices.forEach(inv=>{ const mk=monthKey(inv.fecha); if(!groups[mk])groups[mk]=[]; groups[mk].push(inv); });
   const sortedKeys=Object.keys(groups).sort((a,b)=>b.localeCompare(a));
 
   if(sortedKeys.length===0){ container.innerHTML=''; return; }
@@ -785,9 +785,20 @@ function doExport() {
   ws['!cols']=[{wch:16},{wch:12},{wch:14},{wch:44},{wch:22},{wch:34},{wch:14},{wch:12},{wch:14}];
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, monthLabel(selectedExportMonth));
-  XLSX.writeFile(wb,`Facturas_${selectedExportMonth}.xlsx`);
+  // Try native share, fall back to download link
+  const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+  const blob = new Blob([wbout], {type:'application/octet-stream'});
+  const url = URL.createObjectURL(blob);
+  const fname = `Facturas_${selectedExportMonth}.xlsx`;
+  if (navigator.share) {
+    const file = new File([blob], fname, {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    navigator.share({files:[file], title:'Facturas '+monthLabel(selectedExportMonth)})
+      .catch(()=>{ const a=document.createElement('a'); a.href=url; a.download=fname; a.click(); });
+  } else {
+    const a=document.createElement('a'); a.href=url; a.download=fname; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }
   document.getElementById('modal-export').classList.remove('open');
-  showToast('Excel descargado ✓');
+  showToast('Excel listo ✓');
 }
 
 function showToast(msg) {
