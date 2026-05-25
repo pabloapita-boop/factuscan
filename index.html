@@ -809,7 +809,20 @@ function doExport() {
   const ws = XLSX.utils.aoa_to_sheet(wsData);
   ws['!cols'] = [{wch:16},{wch:12},{wch:14},{wch:44},{wch:22},{wch:34},{wch:14},{wch:12},{wch:14}];
 
-  // Style header row (row 3, index 2)
+  // Apply number format B/. #,##0.00 to numeric cells (cols G, H, I = index 6,7,8)
+  const numFmt = '"B/. "#,##0.00';
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for (let R = range.s.r; R <= range.e.r; R++) {
+    for (let C = 6; C <= 8; C++) {
+      const addr = XLSX.utils.encode_cell({r:R, c:C});
+      if (ws[addr] && typeof ws[addr].v === 'number') {
+        ws[addr].z = numFmt;
+        if (!ws[addr].s) ws[addr].s = {};
+        ws[addr].t = 'n';
+      }
+    }
+  }
+
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, monthLabel(selectedExportMonth));
 
