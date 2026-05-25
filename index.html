@@ -148,6 +148,8 @@ body{background:var(--bg);color:var(--text);min-height:100vh;max-width:430px;mar
 .btn-secondary{background:var(--surface);color:var(--text);border:0.5px solid var(--border2);border-radius:var(--radius-sm);padding:13px 20px;font-size:15px;font-weight:500;width:100%;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px}
 .btn-secondary:active{background:var(--surface2)}
 .btn-danger{background:var(--danger-bg);color:var(--danger);border:none;border-radius:var(--radius-sm);padding:8px 14px;font-size:13px;font-weight:500;cursor:pointer}
+.btn-edit{background:var(--accent-bg);color:var(--accent-text);border:none;border-radius:var(--radius-sm);padding:8px 14px;font-size:13px;font-weight:500;cursor:pointer}
+.btn-edit:active{opacity:0.8}
 .btn-row{display:flex;gap:10px}
 .btn-row .btn-primary,.btn-row .btn-secondary{flex:1;margin-bottom:0}
 
@@ -386,7 +388,10 @@ body{background:var(--bg);color:var(--text);min-height:100vh;max-width:430px;mar
         <div class="modal-title" id="d-emisor"></div>
         <div class="modal-subtitle" id="d-fecha"></div>
       </div>
-      <button class="btn-danger" onclick="deleteInvoice()">Eliminar</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn-edit" onclick="editInvoice()">Editar</button>
+        <button class="btn-danger" onclick="deleteInvoice()">Eliminar</button>
+      </div>
     </div>
     <div style="padding:4px 20px 32px" id="d-body"></div>
   </div>
@@ -592,7 +597,7 @@ function toggleMonth(mk) {
 
 // ── SCAN ─────────────────────────────────────────────────────
 function openScanModal() { document.getElementById('modal-scan').classList.add('open'); resetScan(); }
-function closeScanModal() { document.getElementById('modal-scan').classList.remove('open'); currentFile=null; currentB64=null; currentFileType=null; }
+function closeScanModal() { document.getElementById('modal-scan').classList.remove('open'); currentFile=null; currentB64=null; currentFileType=null; editingId=null; document.querySelector('#step-review .btn-row .btn-primary').textContent='Guardar'; }
 function closeScanOnOverlay(e) { if(e.target===e.currentTarget) closeScanModal(); }
 function resetScan() {
   document.getElementById('step-source').style.display='block';
@@ -640,9 +645,10 @@ async function processFile() {
   if(!currentB64) return;
   document.getElementById('step-preview').style.display='none';
   document.getElementById('step-processing').style.display='block';
-  const prompt=`Analiza esta factura electrónica panameña y extrae los datos en JSON exacto sin markdown:
-{"emisor":"nombre del emisor","ruc":"RUC o ID fiscal","nfactura":"número de factura corto secuencial","cufe":"código CUFE largo alfanumérico (diferente al número de factura)","fecha":"YYYY-MM-DD","subtotal":número,"itbms":número,"total":número,"confidence":"high" o "low"}
-El CUFE es el código largo único, distinto del número de factura. Si no lees un campo pon null. Responde SOLO el JSON.`;
+  const prompt=`Analiza esta factura electrónica panameña y extrae los datos en JSON exacto sin markdown.
+IMPORTANTE: Los montos deben incluir TODOS los decimales exactamente como aparecen en la factura (ej: 40.54, no 40; 2.84, no 2).
+{"emisor":"nombre completo del emisor","ruc":"RUC o ID fiscal del emisor","nfactura":"número de factura corto secuencial","cufe":"código CUFE largo alfanumérico (diferente al número de factura)","fecha":"YYYY-MM-DD","subtotal":número con decimales exactos,"itbms":número con decimales exactos,"total":número con decimales exactos,"confidence":"high" o "low"}
+El CUFE es el código largo único. Los decimales son críticos — léelos con cuidado. Si no lees un campo pon null. Responde SOLO el JSON.`;
   try {
     const mediaType=currentFileType==='pdf'?'application/pdf':(currentFile.type||'image/jpeg');
     const contentType=currentFileType==='pdf'?'document':'image';
@@ -682,18 +688,40 @@ function saveInvoice() {
   const total=document.getElementById('f-total').value;
   if(!emisor||!fecha||!total){ showToast('Completa emisor, fecha y total'); return; }
   if(!selectedCat){ showToast('Selecciona la categoría del gasto'); return; }
-  invoices.push({
-    id:Date.now().toString(), emisor,
-    ruc:document.getElementById('f-ruc').value.trim(),
-    nfactura:document.getElementById('f-nfactura').value.trim(),
-    cufe:document.getElementById('f-cufe').value.trim(),
-    fecha, categoria:selectedCat,
-    subtotal:parseFloat(document.getElementById('f-subtotal').value)||0,
-    itbms:parseFloat(document.getElementById('f-itbms').value)||0,
-    total:parseFloat(total),
-    createdAt:new Date().toISOString()
-  });
-  const newInv = invoices[invoices.length-1]; save(newInv); renderList(); closeScanModal(); showToast('Factura guardada ✓');
+  if (editingId) {
+    // Update existing invoice
+    const idx = invoices.findIndex(i=>i.id===editingId);
+    if (idx !== -1) {
+      invoices[idx] = {...invoices[idx], emisor,
+        ruc:document.getElementById('f-ruc').value.trim(),
+        nfactura:document.getElementById('f-nfactura').value.trim(),
+        cufe:document.getElementById('f-cufe').value.trim(),
+        fecha, categoria:selectedCat,
+        subtotal:parseFloat(document.getElementById('f-subtotal').value)||0,
+        itbms:parseFloat(document.getElementById('f-itbms').value)||0,
+        total:parseFloat(total)
+      };
+      localStorage.setItem(KEY, JSON.stringify(invoices));
+      // Delete and re-save to sheet
+      deleteFromSheet(editingId);
+      setTimeout(()=>save(invoices[idx]), 500);
+    }
+    editingId = null;
+    renderList(); closeScanModal(); showToast('Factura actualizada ✓');
+  } else {
+    invoices.push({
+      id:Date.now().toString(), emisor,
+      ruc:document.getElementById('f-ruc').value.trim(),
+      nfactura:document.getElementById('f-nfactura').value.trim(),
+      cufe:document.getElementById('f-cufe').value.trim(),
+      fecha, categoria:selectedCat,
+      subtotal:parseFloat(document.getElementById('f-subtotal').value)||0,
+      itbms:parseFloat(document.getElementById('f-itbms').value)||0,
+      total:parseFloat(total),
+      createdAt:new Date().toISOString()
+    });
+    const newInv = invoices[invoices.length-1]; save(newInv); renderList(); closeScanModal(); showToast('Factura guardada ✓');
+  }
 }
 
 // ── DETAIL ───────────────────────────────────────────────────
@@ -714,6 +742,36 @@ function openDetail(id) {
     <div class="detail-row"><span class="dk">Total</span><span class="dv big">${bls(inv.total)}</span></div>`;
   document.getElementById('modal-detail').classList.add('open');
 }
+function editInvoice() {
+  if(!currentDetailId) return;
+  const inv = invoices.find(i=>i.id===currentDetailId);
+  if(!inv) return;
+  document.getElementById('modal-detail').classList.remove('open');
+  // Open scan modal in review mode pre-filled
+  document.getElementById('modal-scan').classList.add('open');
+  document.getElementById('step-source').style.display='none';
+  document.getElementById('step-preview').style.display='none';
+  document.getElementById('step-processing').style.display='none';
+  document.getElementById('step-review').style.display='block';
+  // Pre-fill fields
+  selectCat(inv.categoria||'ordinario');
+  document.getElementById('f-emisor').value=inv.emisor||'';
+  document.getElementById('f-ruc').value=inv.ruc||'';
+  document.getElementById('f-nfactura').value=inv.nfactura||'';
+  document.getElementById('f-cufe').value=inv.cufe||'';
+  document.getElementById('f-fecha').value=inv.fecha||'';
+  document.getElementById('f-subtotal').value=inv.subtotal||'';
+  document.getElementById('f-itbms').value=inv.itbms||'';
+  document.getElementById('f-total').value=inv.total||'';
+  document.getElementById('conf-alert').style.display='none';
+  // Mark as editing
+  editingId = currentDetailId;
+  // Change save button text
+  document.querySelector('#step-review .btn-row .btn-primary').textContent='Actualizar';
+}
+
+let editingId = null;
+
 function deleteInvoice() {
   if(!currentDetailId) return;
   if(!confirm('¿Eliminar esta factura?')) return;
