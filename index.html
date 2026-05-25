@@ -775,7 +775,7 @@ function doExport() {
   const ordRows=rows.filter(r=>r['Categoría']==='Ordinario');
   const extRows=rows.filter(r=>r['Categoría']==='Extra');
 
-  const blankRow={'Fecha de Emisión':'','Categoría':'','N° Factura':'','CUFE':'','RUC / ID Emisor':'','Nombre del Emisor':'','Subtotal (B/.)':'','ITBMS (B/.)':'','Total (B/.)'};
+  const blankRow={'Fecha de Emisión':'','Categoría':'','N° Factura':'','CUFE':'','RUC / ID Emisor':'','Nombre del Emisor':'','Subtotal (B/.)':'','ITBMS (B/.)':'','Total (B/.)':''};
   const subtotalOrd={'Fecha de Emisión':'','Categoría':'','N° Factura':'','CUFE':'','RUC / ID Emisor':'','Nombre del Emisor':'SUBTOTAL ORDINARIOS','Subtotal (B/.)':ordRows.reduce((s,r)=>s+r['Subtotal (B/.)'],0),'ITBMS (B/.)':ordRows.reduce((s,r)=>s+r['ITBMS (B/.)'],0),'Total (B/.)':ordRows.reduce((s,r)=>s+r['Total (B/.)'],0)};
   const subtotalExt={'Fecha de Emisión':'','Categoría':'','N° Factura':'','CUFE':'','RUC / ID Emisor':'','Nombre del Emisor':'SUBTOTAL EXTRAS','Subtotal (B/.)':extRows.reduce((s,r)=>s+r['Subtotal (B/.)'],0),'ITBMS (B/.)':extRows.reduce((s,r)=>s+r['ITBMS (B/.)'],0),'Total (B/.)':extRows.reduce((s,r)=>s+r['Total (B/.)'],0)};
   const totalRow={'Fecha de Emisión':'','Categoría':'','N° Factura':'','CUFE':'','RUC / ID Emisor':'','Nombre del Emisor':'TOTAL GENERAL','Subtotal (B/.)':rows.reduce((s,r)=>s+(parseFloat(r['Subtotal (B/.)'])||0),0),'ITBMS (B/.)':rows.reduce((s,r)=>s+(parseFloat(r['ITBMS (B/.)'])||0),0),'Total (B/.)':rows.reduce((s,r)=>s+(parseFloat(r['Total (B/.)'])||0),0)};
