@@ -421,8 +421,7 @@ body{background:var(--bg);color:var(--text);min-height:100vh;max-width:430px;mar
 
 <script>
 const KEY = 'factuscan_v5';
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx4bJ8mL1bQ1SnC1CgXFCW_bwDo5KZjCUppTCXui_UPOu6exLYGTX1yXuFDc3ZL1_ObZw/exec';
-let syncEnabled = true;
+
 let invoices = [];
 
 function migrateOldData() {
@@ -450,9 +449,15 @@ let selectedExportMonth = null;
 
 const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
+const WORKER_URL = 'https://factuscan-proxy.pabloapita.workers.dev';
+
 async function load() {
   try {
-    const res = await fetch(SCRIPT_URL + '?action=load');
+    const res = await fetch(WORKER_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action: 'load'})
+    });
     const data = await res.json();
     if(data.ok && data.invoices) {
       invoices = data.invoices.filter(i=>i.id);
@@ -467,14 +472,20 @@ async function load() {
 async function save(inv) {
   localStorage.setItem(KEY, JSON.stringify(invoices));
   try {
-    const params = new URLSearchParams({data: JSON.stringify({action:'save', invoice:inv})});
-    fetch(SCRIPT_URL + '?' + params.toString(), {mode:'no-cors'}).catch(()=>{});
+    fetch(WORKER_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action: 'save', invoice: inv})
+    }).catch(()=>{});
   } catch(e) {}
 }
 async function deleteFromSheet(id) {
   try {
-    const params = new URLSearchParams({data: JSON.stringify({action:'delete', id:id})});
-    fetch(SCRIPT_URL + '?' + params.toString(), {mode:'no-cors'}).catch(()=>{});
+    fetch(WORKER_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action: 'delete', id: id})
+    }).catch(()=>{});
   } catch(e) {}
 }
 
