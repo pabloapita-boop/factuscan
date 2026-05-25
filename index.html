@@ -398,7 +398,7 @@ body{background:var(--bg);color:var(--text);min-height:100vh;max-width:430px;mar
     <div class="modal-handle"></div>
     <div class="modal-header">
       <div>
-        <div class="modal-title">Exportar datos</div>
+        <div class="modal-title">Exportar a Excel</div>
         <div class="modal-subtitle">Selecciona el mes a exportar</div>
       </div>
     </div>
@@ -411,7 +411,7 @@ body{background:var(--bg);color:var(--text);min-height:100vh;max-width:430px;mar
         <div id="month-options-list"></div>
         <button class="btn-primary" id="btn-export-do" onclick="doExport()" disabled>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Descargar CSV
+          Descargar Excel
         </button>
         <button class="btn-secondary" onclick="document.getElementById('modal-export').classList.remove('open')">Cancelar</button>
       </div>
@@ -770,37 +770,24 @@ function doExport() {
   const filtered=invoices.filter(i=>monthKey(i.fecha)===selectedExportMonth)
     .sort((a,b)=>new Date(a.fecha||0)-new Date(b.fecha||0));
 
-  const sep = ';';
-  const esc = v => {
-    const s = String(v===null||v===undefined?'':v);
-    return s.includes(sep) || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g,'""')}"` : s;
-  };
-  const row = arr => arr.map(esc).join(sep);
-  const num = n => (parseFloat(n)||0).toFixed(2).replace('.',',');
-  const sum = (arr, key) => arr.reduce((s,i)=>s+(parseFloat(i[key])||0),0);
+  const num = n => parseFloat(n)||0;
+  const sum = (arr, key) => arr.reduce((s,i)=>s+num(i[key]),0);
+  const ord = filtered.filter(i=>i.categoria!=='extra');
+  const ext = filtered.filter(i=>i.categoria==='extra');
 
-  const lines = [];
+  // Build worksheet data
+  const wsData = [];
 
-  // Title
-  lines.push(row([`REPORTE DE FACTURAS - ${monthLabel(selectedExportMonth).toUpperCase()}`]));
-  lines.push(row([]));
+  // Title row
+  wsData.push([`REPORTE DE FACTURAS - ${monthLabel(selectedExportMonth).toUpperCase()}`]);
+  wsData.push([]);
 
   // Headers
-  lines.push(row([
-    'Fecha de Emisión',
-    'Categoría',
-    'N° Factura',
-    'CUFE',
-    'RUC / ID Emisor',
-    'Nombre del Emisor',
-    'Subtotal (B/.)',
-    'ITBMS (B/.)',
-    'Total (B/.)'
-  ]));
+  wsData.push(['Fecha de Emisión','Categoría','N° Factura','CUFE','RUC / ID Emisor','Nombre del Emisor','Subtotal (B/.)','ITBMS (B/.)','Total (B/.)']);
 
-  // Data rows
+  // Data
   filtered.forEach(inv => {
-    lines.push(row([
+    wsData.push([
       inv.fecha ? new Date(inv.fecha+'T00:00:00').toLocaleDateString('es-PA') : '',
       inv.categoria==='extra' ? 'Extra' : 'Ordinario',
       inv.nfactura||'',
@@ -810,45 +797,41 @@ function doExport() {
       num(inv.subtotal),
       num(inv.itbms),
       num(inv.total)
-    ]));
+    ]);
   });
 
-  lines.push(row([]));
+  wsData.push([]);
+  if(ord.length>0) wsData.push(['','','','','','SUBTOTAL ORDINARIOS', sum(ord,'subtotal'), sum(ord,'itbms'), sum(ord,'total')]);
+  if(ext.length>0) wsData.push(['','','','','','SUBTOTAL EXTRAS', sum(ext,'subtotal'), sum(ext,'itbms'), sum(ext,'total')]);
+  wsData.push([]);
+  wsData.push(['','','','','','TOTAL GENERAL', sum(filtered,'subtotal'), sum(filtered,'itbms'), sum(filtered,'total')]);
 
-  // Subtotals by category
-  const ord = filtered.filter(i=>i.categoria!=='extra');
-  const ext = filtered.filter(i=>i.categoria==='extra');
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [{wch:16},{wch:12},{wch:14},{wch:44},{wch:22},{wch:34},{wch:14},{wch:12},{wch:14}];
 
-  if (ord.length > 0) {
-    lines.push(row(['','','','','','SUBTOTAL ORDINARIOS', num(sum(ord,'subtotal')), num(sum(ord,'itbms')), num(sum(ord,'total'))]));
-  }
-  if (ext.length > 0) {
-    lines.push(row(['','','','','','SUBTOTAL EXTRAS', num(sum(ext,'subtotal')), num(sum(ext,'itbms')), num(sum(ext,'total'))]));
-  }
+  // Style header row (row 3, index 2)
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, monthLabel(selectedExportMonth));
 
-  lines.push(row([]));
-  lines.push(row(['','','','','','TOTAL GENERAL', num(sum(filtered,'subtotal')), num(sum(filtered,'itbms')), num(sum(filtered,'total'))]));
-
-  const csv = lines.join('\r\n');
-  const bom = '\uFEFF';
-  const blob = new Blob([bom + csv], {type: 'text/csv;charset=utf-8;'});
-  const fname = `Facturas_${selectedExportMonth}.csv`;
+  const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+  const blob = new Blob([wbout], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const fname = `Facturas_${selectedExportMonth}.xlsx`;
   const url = URL.createObjectURL(blob);
 
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   if (isMobile && navigator.share && navigator.canShare) {
-    const file = new File([blob], fname, {type:'text/csv'});
+    const file = new File([blob], fname, {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
     if (navigator.canShare({files:[file]})) {
       navigator.share({files:[file], title:'Facturas '+monthLabel(selectedExportMonth)})
         .catch(()=>{ triggerDownload(url, fname); });
       document.getElementById('modal-export').classList.remove('open');
-      showToast('Archivo listo ✓');
+      showToast('Excel listo ✓');
       return;
     }
   }
   triggerDownload(url, fname);
   document.getElementById('modal-export').classList.remove('open');
-  showToast('CSV descargado ✓');
+  showToast('Excel descargado ✓');
 }
 
 function triggerDownload(url, fname) {
@@ -876,5 +859,6 @@ fetch(WORKER_URL, {method:'POST', headers:{'Content-Type':'application/json'}, b
   .then(data=>{ if(data.ok && data.invoices && data.invoices.length>0){ invoices=data.invoices.filter(i=>i.id); localStorage.setItem(KEY,JSON.stringify(invoices)); renderList(); }})
   .catch(()=>{});
 </script>
+<script src="https://pabloapita-boop.github.io/factuscan/xlsx.full.min.js"></script>
 </body>
 </html>
