@@ -292,6 +292,11 @@ body{background:var(--bg);color:var(--text);min-height:100vh;max-width:430px;mar
             <div class="source-btn-label">Cargar PDF</div>
             <div class="source-btn-sub">Factura en formato PDF</div>
           </div>
+          <div class="source-btn" onclick="enterManually()" style="grid-column:1/-1">
+            <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            <div class="source-btn-label">Ingresar manualmente</div>
+            <div class="source-btn-sub">Escribe los datos tú mismo</div>
+          </div>
         </div>
         <input type="file" id="file-input-img" accept="image/*" capture="environment" onchange="handleImage(event)">
         <input type="file" id="file-input-gallery" accept="image/*" onchange="handleImage(event)">
@@ -617,6 +622,21 @@ function selectCat(cat) {
   document.getElementById('cat-ord').className='cat-opt '+(cat==='ordinario'?'ord-active':'ord-inactive');
   document.getElementById('cat-ext').className='cat-opt '+(cat==='extra'?'ext-active':'ext-inactive');
 }
+function enterManually() {
+  document.getElementById('step-source').style.display='none';
+  document.getElementById('step-review').style.display='block';
+  selectCat('ordinario');
+  document.getElementById('f-emisor').value='';
+  document.getElementById('f-ruc').value='';
+  document.getElementById('f-nfactura').value='';
+  document.getElementById('f-cufe').value='';
+  document.getElementById('f-fecha').value=new Date().toISOString().split('T')[0];
+  document.getElementById('f-subtotal').value='';
+  document.getElementById('f-itbms').value='';
+  document.getElementById('f-total').value='';
+  document.getElementById('conf-alert').style.display='none';
+}
+
 function handleImage(e) {
   const file=e.target.files[0]; if(!file) return;
   currentFile=file; currentFileType='image';
